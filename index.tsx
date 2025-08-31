@@ -40,7 +40,7 @@ async function findMovies(query: string) {
         // Credits (cast + director)
         const creditsRes = await fetch(`${BASE_URL}/movie/${m.id}/credits?api_key=${API_KEY}`);
         const credits = await creditsRes.json();
-        const director = credits.crew.find((c: any) => c.job === "Director")?.name || "N/A";
+        const director = credits.crew.find((c: any) => c.job === "Director")?.name || "Not Available";
         const mainCast = credits.cast.slice(0, 4).map((c: any) => c.name);
 
         // Trailer (YouTube)
@@ -57,18 +57,19 @@ async function findMovies(query: string) {
         const ottPlatforms =
           providers.results?.IN?.flatrate?.map((p: any) => p.provider_name) || [];
 
+        // ✅ Return object with safe fallbacks
         return {
           title: m.title,
-          plot: m.overview,
-          imdbRating: m.vote_average,
+          plot: m.overview || "No plot available.",
+          imdbRating: m.vote_average || 0,
           releaseYear: parseInt(m.release_date?.split("-")[0]) || 0,
           posterUrl: m.poster_path
             ? `https://image.tmdb.org/t/p/w500${m.poster_path}`
             : "https://via.placeholder.com/500x750?text=No+Poster",
-          mainCast,
-          director,
-          ottPlatforms,
-          youtubeTrailerId,
+          mainCast: mainCast.length > 0 ? mainCast : ["Not Available"],
+          director: director || "Not Available",
+          ottPlatforms: ottPlatforms.length > 0 ? ottPlatforms : ["Not Available"],
+          youtubeTrailerId: youtubeTrailerId || "",
         };
       })
     );
