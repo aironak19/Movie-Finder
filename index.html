@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Movie Finder</title>
+    <link rel="stylesheet" href="index.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.run/@google/genai"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>🎬 Movie Finder</h1>
+      <form id="search-form">
+        <input type="text" id="search-input" placeholder="Describe a movie, mood, or genre..." aria-label="Search for movies" />
+        <button type="submit" aria-label="Search">Search</button>
+      </form>
+      <div id="sort-options">
+        <button data-sort="rating">Sort by Rating</button>
+        <button data-sort="year">Sort by Year</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="loader" class="hidden">
+        <div class="spinner"></div>
+        <p>Finding the perfect movie for you...</p>
+      </div>
+      <div id="error-message" class="hidden"></div>
+      <div id="welcome-message">
+          <h2>Find Your Next Favorite Movie</h2>
+          <p>Tell me what you're in the mood for. Try "a funny sci-fi movie with a lot of action" or "a sad romantic movie from the 90s".</p>
+      </div>
+      <div id="movie-grid"></div>
+    </main>
+
+    <div id="movie-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-content">
+        <button id="modal-close" class="modal-close" aria-label="Close movie details">&times;</button>
+        <div class="modal-body">
+            <img id="modal-poster" src="" alt="Movie poster" />
+            <div class="modal-details">
+              <h2 id="modal-title"></h2>
+              <div class="meta">
+                <span id="modal-rating"></span>
+                <span id="modal-year"></span>
+              </div>
+              <p id="modal-plot"></p>
+              <h3>Cast & Crew</h3>
+              <p><strong>Director:</strong> <span id="modal-director"></span></p>
+              <p><strong>Cast:</strong> <span id="modal-cast"></span></p>
+              <h3>Where to Watch</h3>
+              <div id="modal-ott"></div>
+            </div>
+        </div>
+        <div class="modal-trailer">
+            <iframe id="modal-youtube" width="560" height="315" src="" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
