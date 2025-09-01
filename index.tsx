@@ -1,249 +1,101 @@
-// --- TYPES ---
+import React, { useState } from 'react';
+import './index.css';
+
+const API_KEY = 'd17573b0e7332f532ccfaa157298c29e';
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
 interface Movie {
+  id: number;
   title: string;
-  plot: string;
-  imdbRating: number;
-  releaseYear: number;
-  posterUrl: string;
-  mainCast: string[];
+  poster_path: string;
+  release_date: string;
+  vote_average: number;
+  overview: string;
+  cast: string[];
   director: string;
-  ottPlatforms: string[];
-  youtubeTrailerId: string;
+  trailer: string;
+  ott: string[];
 }
 
-// --- TMDB API SETUP ---
-const API_KEY = "d17573b0e7332f532ccfaa157298c29e"; 
-const BASE_URL = "https://api.themoviedb.org/3";
+const App: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(false);
 
-// --- GLOBAL STATE ---
-let currentMovies: Movie[] = [];
+  const fetchMovieDetails = async (id: number) => {
+    const creditsRes = await fetch(`${TMDB_BASE_URL}/movie/${id}/credits?api_key=${API_KEY}`);
+    const creditsData = await creditsRes.json();
+    const cast = creditsData.cast.slice(0, 5).map((c: any) => c.name);
+    const director = creditsData.crew.find((c: any) => c.job === 'Director')?.name || 'Unknown';
 
-// --- DOM ELEMENTS ---
-const searchForm = document.getElementById('search-form') as HTMLFormElement;
-const searchInput = document.getElementById('search-input') as HTMLInputElement;
-const movieGrid = document.getElementById('movie-grid') as HTMLDivElement;
-const loader = document.getElementById('loader') as HTMLDivElement;
-const errorMessage = document.getElementById('error-message') as HTMLDivElement;
-const welcomeMessage = document.getElementById('welcome-message') as HTMLDivElement;
-const sortButtons = document.querySelectorAll('[data-sort]') as NodeListOf<HTMLButtonElement>;
-const modal = document.getElementById('movie-modal') as HTMLDivElement;
-const modalClose = document.getElementById('modal-close') as HTMLButtonElement;
+    const trailerRes = await fetch(`${TMDB_BASE_URL}/movie/${id}/videos?api_key=${API_KEY}`);
+    const trailerData = await trailerRes.json();
+    const trailer = trailerData.results.find((v: any) => v.type === 'Trailer')?.key || '';
 
-// --- API FUNCTIONS ---
-async function findMovies(query: string) {
-  toggleLoading(true);
-  hideError();
-  welcomeMessage.classList.add('hidden');
-  movieGrid.innerHTML = '';
+    const ottRes = await fetch(`${TMDB_BASE_URL}/movie/${id}/watch/providers?api_key=${API_KEY}`);
+    const ottData = await ottRes.json();
+    const ott = ottData.results?.US?.flatrate?.map((p: any) => p.provider_name) || [];
 
-  try {
-    // Step 1: Search for movies
-    const res = await fetch(
-      `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`
-    );
+    return { cast, director, trailer, ott };
+  };
+
+  const searchMovies = async () => {
+    if (!query) return;
+    setLoading(true);
+    const res = await fetch(`${TMDB_BASE_URL}/search/movie?api_key=${API_KEY}&query=${query}`);
     const data = await res.json();
 
-    if (!data.results || data.results.length === 0) {
-      showError("No movies found. Try another search.");
-      return;
-    }
-
-    // Step 2: Enrich each movie with details (credits, trailer, OTT)
-    const movies: Movie[] = await Promise.all(
-      data.results.slice(0, 8).map(async (m: any) => {
-        try {
-          // Credits (cast + director)
-          const creditsRes = await fetch(`${BASE_URL}/movie/${m.id}/credits?api_key=${API_KEY}`);
-          const credits = await creditsRes.json();
-          const director = credits.crew?.find((c: any) => c.job === "Director")?.name || "N/A";
-          const mainCast = credits.cast?.slice(0, 4).map((c: any) => c.name) || [];
-
-          // Trailer (YouTube)
-          const videosRes = await fetch(`${BASE_URL}/movie/${m.id}/videos?api_key=${API_KEY}`);
-          const videos = await videosRes.json();
-          const youtubeTrailer = videos.results?.find(
-            (v: any) => v.site === "YouTube" && v.type === "Trailer"
-          );
-          const youtubeTrailerId = youtubeTrailer ? youtubeTrailer.key : "";
-
-          // OTT availability
-          const providersRes = await fetch(`${BASE_URL}/movie/${m.id}/watch/providers?api_key=${API_KEY}`);
-          const providers = await providersRes.json();
-          const ottPlatforms =
-            providers.results?.IN?.flatrate?.map((p: any) => p.provider_name) || [];
-
-          return {
-            title: m.title || "Unknown Title",
-            plot: m.overview || "No plot available",
-            imdbRating: m.vote_average || 0,
-            releaseYear: parseInt(m.release_date?.split("-")[0]) || 0,
-            posterUrl: m.poster_path
-              ? `https://image.tmdb.org/t/p/w500${m.poster_path}`
-              : "https://via.placeholder.com/500x750?text=No+Poster",
-            mainCast,
-            director,
-            ottPlatforms,
-            youtubeTrailerId,
-          };
-        } catch (error) {
-          console.error(`Error fetching details for movie ${m.id}:`, error);
-          // Return basic movie info if detailed fetch fails
-          return {
-            title: m.title || "Unknown Title",
-            plot: m.overview || "No plot available",
-            imdbRating: m.vote_average || 0,
-            releaseYear: parseInt(m.release_date?.split("-")[0]) || 0,
-            posterUrl: m.poster_path
-              ? `https://image.tmdb.org/t/p/w500${m.poster_path}`
-              : "https://via.placeholder.com/500x750?text=No+Poster",
-            mainCast: [],
-            director: "N/A",
-            ottPlatforms: [],
-            youtubeTrailerId: "",
-          };
-        }
+    const moviesWithDetails = await Promise.all(
+      data.results.slice(0, 10).map(async (movie: any) => {
+        const details = await fetchMovieDetails(movie.id);
+        return {
+          id: movie.id,
+          title: movie.title,
+          poster_path: movie.poster_path,
+          release_date: movie.release_date,
+          vote_average: movie.vote_average,
+          overview: movie.overview,
+          ...details,
+        };
       })
     );
+    setMovies(moviesWithDetails);
+    setLoading(false);
+  };
 
-    currentMovies = movies;
-    renderMovies(currentMovies);
-  } catch (err) {
-    console.error("Error fetching movies:", err);
-    showError("Something went wrong fetching movies.");
-  } finally {
-    toggleLoading(false);
-  }
-}
-
-// --- UI FUNCTIONS ---
-function renderMovies(movies: Movie[]) {
-  movieGrid.innerHTML = '';
-  
-  movies.forEach((movie) => {
-    const movieCard = document.createElement('div');
-    movieCard.className = 'movie-card';
-    movieCard.innerHTML = `
-      <img src="${movie.posterUrl}" alt="${movie.title} poster" loading="lazy" />
-      <div class="movie-info">
-        <h3>${movie.title}</h3>
-        <div class="movie-meta">
-          <span class="rating">⭐ ${movie.imdbRating.toFixed(1)}</span>
-          <span class="year">${movie.releaseYear}</span>
-        </div>
-        <p class="plot">${movie.plot.length > 100 ? movie.plot.substring(0, 100) + '...' : movie.plot}</p>
+  return (
+    <div className="app">
+      <h1>Movie Finder</h1>
+      <div className="search-bar">
+        <input
+          type="text"
+          placeholder="Enter mood, genre, or movie..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button onClick={searchMovies}>Search</button>
       </div>
-    `;
-    
-    movieCard.addEventListener('click', () => openModal(movie));
-    movieGrid.appendChild(movieCard);
-  });
-}
+      {loading && <p>Loading...</p>}
+      <div className="movie-grid">
+        {movies.map((movie) => (
+          <div key={movie.id} className="movie-card">
+            <img
+              src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750'}
+              alt={movie.title}
+            />
+            <h3>{movie.title}</h3>
+            <p>⭐ {movie.vote_average} | 📅 {movie.release_date}</p>
+            <p><strong>Director:</strong> {movie.director}</p>
+            <p><strong>Cast:</strong> {movie.cast.join(', ')}</p>
+            {movie.ott.length > 0 && <p><strong>Available on:</strong> {movie.ott.join(', ')}</p>}
+            {movie.trailer && (
+              <a href={`https://www.youtube.com/watch?v=${movie.trailer}`} target="_blank" rel="noopener noreferrer">Watch Trailer</a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
-function openModal(movie: Movie) {
-  const modalTitle = document.getElementById('modal-title') as HTMLHeadingElement;
-  const modalPoster = document.getElementById('modal-poster') as HTMLImageElement;
-  const modalRating = document.getElementById('modal-rating') as HTMLSpanElement;
-  const modalYear = document.getElementById('modal-year') as HTMLSpanElement;
-  const modalPlot = document.getElementById('modal-plot') as HTMLParagraphElement;
-  const modalDirector = document.getElementById('modal-director') as HTMLSpanElement;
-  const modalCast = document.getElementById('modal-cast') as HTMLSpanElement;
-  const modalOtt = document.getElementById('modal-ott') as HTMLDivElement;
-  const modalYoutube = document.getElementById('modal-youtube') as HTMLIFrameElement;
-
-  modalTitle.textContent = movie.title;
-  modalPoster.src = movie.posterUrl;
-  modalPoster.alt = `${movie.title} poster`;
-  modalRating.textContent = `⭐ ${movie.imdbRating.toFixed(1)}`;
-  modalYear.textContent = `${movie.releaseYear}`;
-  modalPlot.textContent = movie.plot;
-  modalDirector.textContent = movie.director;
-  modalCast.textContent = movie.mainCast.join(', ');
-  
-  // OTT platforms
-  modalOtt.innerHTML = movie.ottPlatforms.length > 0 
-    ? movie.ottPlatforms.map(platform => `<span class="ott-platform">${platform}</span>`).join('')
-    : '<span class="no-ott">Not available on major platforms</span>';
-  
-  // YouTube trailer
-  if (movie.youtubeTrailerId) {
-    modalYoutube.src = `https://www.youtube.com/embed/${movie.youtubeTrailerId}`;
-    modalYoutube.style.display = 'block';
-  } else {
-    modalYoutube.style.display = 'none';
-  }
-
-  modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  modal.classList.add('hidden');
-  document.body.style.overflow = 'auto';
-  const modalYoutube = document.getElementById('modal-youtube') as HTMLIFrameElement;
-  modalYoutube.src = '';
-}
-
-function toggleLoading(show: boolean) {
-  if (show) {
-    loader.classList.remove('hidden');
-  } else {
-    loader.classList.add('hidden');
-  }
-}
-
-function showError(message: string) {
-  errorMessage.textContent = message;
-  errorMessage.classList.remove('hidden');
-}
-
-function hideError() {
-  errorMessage.classList.add('hidden');
-}
-
-function sortMovies(sortBy: string) {
-  let sortedMovies = [...currentMovies];
-  
-  switch (sortBy) {
-    case 'rating':
-      sortedMovies.sort((a, b) => b.imdbRating - a.imdbRating);
-      break;
-    case 'year':
-      sortedMovies.sort((a, b) => b.releaseYear - a.releaseYear);
-      break;
-  }
-  
-  renderMovies(sortedMovies);
-}
-
-// --- EVENT LISTENERS ---
-searchForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const query = searchInput.value.trim();
-  if (query) {
-    findMovies(query);
-  }
-});
-
-sortButtons.forEach(button => {
-  button.addEventListener('click', () => {
-    const sortBy = button.getAttribute('data-sort');
-    if (sortBy && currentMovies.length > 0) {
-      sortMovies(sortBy);
-    }
-  });
-});
-
-modalClose.addEventListener('click', closeModal);
-
-modal.addEventListener('click', (e) => {
-  if (e.target === modal) {
-    closeModal();
-  }
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-    closeModal();
-  }
-});
-
+export default App;
